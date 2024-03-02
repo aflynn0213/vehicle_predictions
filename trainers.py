@@ -35,7 +35,7 @@ class XGB_Classifier:
     
     def train_model(self,feats,trims,stats):
         if (stats):
-            # Assuming post_feat_engj is your feature matrix and orig_train is your original training dataset
+            #Split for stats on training data
             x_train, x_test, y_train, y_test = train_test_split(feats, trims, test_size=0.20, random_state=42)
         else:
             x_train = feats
@@ -64,7 +64,7 @@ class XGB_Classifier:
         print("Best Parameters: ", xgb_cv.best_params_)
         print("Best Score: ", xgb_cv.best_score_)
         
-        # Evaluating on test data using best estimator
+        # Grab CV best estimator
         best_xgb_clf = xgb_cv.best_estimator_
 
         
@@ -75,7 +75,7 @@ class XGB_Classifier:
             print(preds)
             print(preds_proba)
         
-            # Calculate ROC-AUC score
+            # Calculates ROC-AUC score
             roc_auc_scores = []
             for i in range(len(best_xgb_clf.classes_)):
                 roc_auc_i = roc_auc_score((y_test == best_xgb_clf.classes_[i]).astype(int), preds_proba[:, i])
@@ -85,11 +85,11 @@ class XGB_Classifier:
             print(np.mean(roc_auc_scores))
 
             for metric in scoring:
-                score_key = f"mean_test_{metric}"  # Adjust the key to access cv_results_
+                score_key = f"mean_test_{metric}" 
                 score = xgb_cv.cv_results_[score_key]
                 print(f"METRIC '{metric}': SCORES '{score}'")
         
-            # Assuming y_true and y_pred are your true and predicted labels
+            # Precisions
             precision_micro = precision_score(y_test, preds, average='micro')
             precision_macro = precision_score(y_test, preds, average='macro')
             precision_weighted = precision_score(y_test, preds, average='weighted')
@@ -122,23 +122,16 @@ class XGB_Classifier:
             print("F1 Score Weighted:", f1_weighted)
             print("F1 Score for each class:", f1_none)
             
-            # Create an array of zeros for missing classes
-            #missing_classes = set(orig_jeep_encoder.classes_) - set(jeep_encoder.classes_)
-            #missing_indices = [orig_jeep_encoder.classes_.tolist().index(class_) for class_ in missing_classes]
-            
             print(np.unique(y_test))
             print(np.unique(preds_proba))
             
             # Extend predicted probabilities to include missing classes
-            #extended_preds_proba = np.insert(preds_proba, missing_indices, 0, axis=1)
             # Compute ROC AUC score for micro, macro, and weighted averaging
             roc_auc_ovo = roc_auc_score(y_test, preds_proba, multi_class='ovo')
             roc_auc_ovr = roc_auc_score(y_test, preds_proba, multi_class='ovr')
-            #roc_auc_weighted = roc_auc_score(y_test, preds_proba, average='weighted')
             
             print("*********ROC AUC OVO*******:", roc_auc_ovo)
             print("*********ROC AUC OVR*******:", roc_auc_ovr)
-            #print("*********ROC AUC Weighted****:", roc_auc_weighted)
             
             # Confusion Matrix
             conf_matrix = confusion_matrix(y_test, preds)
@@ -209,11 +202,11 @@ class XGB_Regressor:
         return best_xgb_reg
     
     def prediction(self,feats_data):
-        if (self.model):
-            self.preds = self.model.predict(feats_data.values)
-            self.preds = pd.Series( self.preds,
-                                    index=feats_data.index,
-                                    name=self.target.name    )
+        self.preds = self.model.predict(feats_data.values)
+        self.preds = pd.Series( self.preds,
+                                index=feats_data.index,
+                                name=self.target.name    )
+        return self.preds
     
     
     
