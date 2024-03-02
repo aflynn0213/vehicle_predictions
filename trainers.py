@@ -17,7 +17,8 @@ from sklearn.metrics import (make_scorer,
                              confusion_matrix)
 
 from xgboost import XGBRegressor, XGBClassifier
-
+import price_calculations as pr
+from sklearn.metrics import explained_variance_score
 
 class XGB_Classifier:
 
@@ -164,27 +165,34 @@ class XGB_Regressor:
             self.model = self.train_model(feats,target,trims,encoder,False,dummies)
 
     def train_model(self,feats,target,trims,encoder,stats,dummies):
-        if (dummies):
-            trims = pd.get_dummies(encoder.inverse_transform(trims))
-            trims.set_index(feats.index,inplace=True)
-            print("DUMMIES: ",trims)
-            feats = pd.concat([feats , trims] ,  axis = 1)
-            print("SECOND : ",feats)
-            
         if (stats):
-            x_train, x_test, y_train, y_test = train_test_split(feats, target, test_size=0.20, random_state=42)
+            x_train, x_test, y_train, y_test = train_test_split(feats, target, test_size=0.20, random_state=42,stratify=trims)
+            if (dummies):
+                subset_indices = x_train.index.intersection(feats.index)
+                tmp_trims = pd.get_dummies(encoder.inverse_transform(trims.loc[subset_indices]))
+                tmp_trims.set_index(subset_indices, inplace=True)
+                print("DUMMIES: ",tmp_trims)
+                x_train = pd.concat([x_train , tmp_trims] ,  axis = 1)
+                print("SECOND : ",feats)
         else:
             x_train = feats
             y_train = target
+            if (dummies):
+                tmp_trims = pd.get_dummies(encoder.inverse_transform(trims))
+                tmp_trims.set_index(feats.index,inplace=True)
+                print("DUMMIES: ",tmp_trims)
+                x_train = pd.concat([x_train , tmp_trims] ,  axis = 1)
+                print("SECOND : ",feats)
         
         param_grid = {
             'n_estimators': [100, 200],
             'max_depth': [3, 5, 7],
             'learning_rate': [0.05, 0.1, 0.2]
         }
+        print(x_train)
         xgb = XGBRegressor()
         # Grid search using cross-validation
-        cv = GridSearchCV(estimator=xgb, param_grid=param_grid, cv=5, scoring='r2')
+        cv = GridSearchCV(estimator=xgb, param_grid=param_grid, cv=7, scoring='r2')
         cv.fit(x_train,y_train)
         
         # Best parameters and best score
@@ -193,12 +201,22 @@ class XGB_Regressor:
         
         best_xgb_reg = cv.best_estimator_
         if (stats):
-            preds = best_xgb_reg.predict(x_test)
+            subset_indices_test = x_test.index.intersection(feats.index)
+            self.model = best_xgb_reg
+            dummy_trims = pd.get_dummies(trims.loc[subset_indices_test])
+            exp_prices = pr.calc_exp_prices(x_test,encoder.inverse_transform(dummy_trims),self)
+            clf = XGB_Classifier(x_test,trims.loc[subset_indices_test],False,encoder)
+            clf.prediction(x_test)
+            exp_preds = pr.calc_test_prices(x_test,clf,self,exp_prices)
+            preds = best_xgb_reg.predict(pd.concat([x_test,dummy_trims],axis=1).values)
             r2 = r2_score(y_test, preds)
-            
-            print("R2 Score:", r2)
-            print(preds)
-
+            r2_exp = r2_score(y_test,exp_preds)
+            print("R2 Score for straight model predict:", r2)
+            evs = explained_variance_score(y_test, exp_preds)
+            rmse = np.sqrt(mean_squared_error(y_test, exp_preds))
+            print("R2 Score for Exp price calc:", r2_exp)
+            print( "EXPLAINED VARIANCE ", evs)
+            print("rmse: ",rmse)
         return best_xgb_reg
     
     def prediction(self,feats_data):
