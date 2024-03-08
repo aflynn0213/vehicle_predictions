@@ -196,16 +196,17 @@ class XGB_Regressor:
         cv.fit(x_train,y_train)
         
         # Best parameters and best score
-        print("Best Parameters: ", cv.best_params_)
-        print("Best Score R2: ", cv.best_score_)
+        print("Best AJF Parameters: ", cv.best_params_)
+        print("Best AJF Score R2: ", cv.best_score_)
         
         best_xgb_reg = cv.best_estimator_
         if (stats):
             subset_indices_test = x_test.index.intersection(feats.index)
             self.model = best_xgb_reg
-            dummy_trims = pd.get_dummies(trims.loc[subset_indices_test])
-            exp_prices = pr.calc_exp_prices(x_test,encoder.inverse_transform(dummy_trims),self)
-            clf = XGB_Classifier(x_test,trims.loc[subset_indices_test],False,encoder)
+            subs_trims = trims.loc[subset_indices_test]
+            dummy_trims = pd.get_dummies(subs_trims)
+            exp_prices = pr.calc_exp_prices(x_test,subs_trims,self)
+            clf = XGB_Classifier(x_test,subs_trims,False,encoder)
             clf.prediction(x_test)
             exp_preds = pr.calc_test_prices(x_test,clf,self,exp_prices)
             preds = best_xgb_reg.predict(pd.concat([x_test,dummy_trims],axis=1).values)
