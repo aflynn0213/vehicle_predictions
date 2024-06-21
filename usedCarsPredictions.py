@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[229]:
+# In[1773]:
 
 
 # -*- coding: utf-8 -*-
@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-
+from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from sklearn.neural_network import MLPRegressor
@@ -18,7 +18,8 @@ import statsmodels.api as sm
 
 from sklearn.preprocessing import (LabelEncoder, OneHotEncoder, 
                                    PolynomialFeatures, StandardScaler,
-                                   label_binarize)
+                                   label_binarize,MultiLabelBinarizer)
+ 
 from scipy.sparse import csr_matrix
 
 #from tensorflow.keras.models import Sequential
@@ -39,7 +40,7 @@ import xgboost as xgb
 import matplotlib.pyplot as plt
 
 
-# In[230]:
+# In[1774]:
 
 
 # Reload Trainers due to possibility of local changes
@@ -48,7 +49,7 @@ reload(pr)
 reload(nm)
 
 
-# In[231]:
+# In[1775]:
 
 
 def engineerTestData(df,log_cols,encoded_cols,freq_cols,
@@ -195,12 +196,21 @@ def handle_vehhistory(df):
         'Non-Personal Use Reported',
         'Title Issue(s) Reported'
     ]
-    df = df.str.strip()
-    # Applies one-hot encoding to the 'History' column based on the unique phrases
-    encoded_df = df.str.get_dummies(',').reindex(columns=unique_phrases, fill_value=0)
-    # Checks if all columns for the specified phrases contain zeros and create a 'None of the above' column
+    
+    # Strip whitespace from each string in the Series
+    df = df.astype(str).str.strip()
+    
+    # Initialize a DataFrame to store the encoded values
+    encoded_df = pd.DataFrame(index=df.index)
+    
+    # Iterate over each unique phrase
+    for phrase in unique_phrases:
+        # Check if the phrase exists in each row and create a binary indicator
+        encoded_df[phrase] = df.apply(lambda x: 1 if phrase in x else 0)
+    
+    # Create a 'None of the above' column to indicate if none of the phrases were found
     encoded_df['None of the above'] = (encoded_df.sum(axis=1) == 0).astype(int)
-    encoded_df.index = df.index
+    
     return encoded_df
 
 def handle_vehcolorext(df_):
@@ -245,7 +255,7 @@ def calculate_age(df_):
     return age
 
 
-# In[232]:
+# In[1776]:
 
 
 #Initialize training and test dataframes
@@ -260,7 +270,7 @@ orig_train.dropna(axis=0,how='any',inplace=True) #EXPLICIT CALL TO DROP ROWS WIT
                                                  #(DEFAULT CALL DOES SAME)
 
 
-# In[233]:
+# In[1777]:
 
 
 orig_train.columns = orig_train.columns.str.lower()
@@ -270,7 +280,7 @@ df_train = orig_train.copy()
 df_train.info()
 
 
-# In[234]:
+# In[1778]:
 
 
 #NOTICE THERES ONLY JEEPS AND CADILLACS IN DATA SET BRAKE THEM UP FURTHER TO SEE
@@ -282,7 +292,7 @@ print(jeeps['vehicle_trim'].value_counts())
 print(caddy['vehicle_trim'].value_counts())
 
 
-# In[235]:
+# In[1779]:
 
 
 #MASSIVE CLASS IMBALANCE WILL NEED TO CONDENSE THIS AND IGNORE LOW FREQUENCY CLASSES
@@ -305,7 +315,7 @@ caddy = caddy[caddy['vehicle_trim'].isin(valid_labels)]
 caddy["vehicle_trim"]
 
 
-# In[236]:
+# In[1780]:
 
 
 valid_labels_jeep = ['limited', 'laredo',  'summit',
@@ -328,7 +338,7 @@ jeeps = jeeps[jeeps['vehicle_trim'].isin(choices_jeep)]
 jeeps["vehicle_trim"]
 
 
-# In[237]:
+# In[1781]:
 
 
 print("CADDY")
@@ -337,7 +347,7 @@ print("JEEP")
 print(jeeps["vehicle_trim"].value_counts())
 
 
-# In[238]:
+# In[1782]:
 
 
 print(jeeps.index)
@@ -347,7 +357,7 @@ df_train.update(caddy[['vehicle_trim']])
 df_train["vehicle_trim"].value_counts()
 
 
-# In[239]:
+# In[1783]:
 
 
 options = choices + choices_jeep
@@ -357,7 +367,7 @@ print(df_train["vehicle_trim"].value_counts())
 df_train.head()
 
 
-# In[240]:
+# In[1784]:
 
 
 feats_to_drop = []
@@ -383,19 +393,19 @@ feat_ptrj,column = setFeatPtr(input_jeeps,col)
 feat_ptrc,column = setFeatPtr(input_caddys,col)
 
 
-# In[241]:
+# In[1785]:
 
 
 feat_ptrj.head()
 
 
-# In[242]:
+# In[1786]:
 
 
 feat_ptrc.head()
 
 
-# In[243]:
+# In[1787]:
 
 
 #PERCENTAGE MODE APPEARS
@@ -407,7 +417,7 @@ print(count/len(feat_ptrc))
 print(feat_ptrc.nunique())
 
 
-# In[244]:
+# In[1788]:
 
 
 value_counts = feat_ptrj.value_counts()
@@ -430,7 +440,7 @@ feat_ptrj = feat_ptrj.map(freq)
 feat_ptrj.head()
 
 
-# In[245]:
+# In[1789]:
 
 
 value_counts = feat_ptrc.value_counts()
@@ -453,21 +463,21 @@ feat_ptrc = feat_ptrc.map(freq)
 feat_ptrc.head()
 
 
-# In[246]:
+# In[1790]:
 
 
 input_jeeps[column] = feat_ptrj
 input_jeeps.head()
 
 
-# In[247]:
+# In[1791]:
 
 
 input_caddys[column] = feat_ptrc
 input_caddys.head()
 
 
-# In[248]:
+# In[1792]:
 
 
 freq_cols.append(column)
@@ -478,14 +488,14 @@ print(feat_ptrj)
 print(feat_ptrc)
 
 
-# In[249]:
+# In[1793]:
 
 
 print(feat_ptrj.value_counts())
 print(feat_ptrc.value_counts())
 
 
-# In[250]:
+# In[1794]:
 
 
 feats_to_drop.append(column)
@@ -500,7 +510,7 @@ print(feat_ptrc.nunique())
 print(feat_ptrc.unique())
 
 
-# In[251]:
+# In[1795]:
 
 
 #A CATEGORY COLUMN EASY TO ONE HOT ENCODE WITH A SMALL ENUMERATION AMOUNT (ONLY REQUIRES
@@ -516,21 +526,21 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[252]:
+# In[1796]:
 
 
 print(feat_ptrj.value_counts()[feat_ptrj.mode()]/len(feat_ptrj))
 feat_ptrj.value_counts().head(30)
 
 
-# In[253]:
+# In[1797]:
 
 
 #NOT CATEGORICAL OR CONTAINS DOMINATE VALUES, WILL NOT SIGNFICANTLY IMPACT MODEL PREDICTION EFFICIENCY
 feats_to_drop.append(column)
 
 
-# In[254]:
+# In[1798]:
 
 
 col +=1
@@ -540,7 +550,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[255]:
+# In[1799]:
 
 
 #POSSIBLY NORMALIZE (Z-TRANSFORM) FOR NOW KEEP IT INTACT
@@ -552,7 +562,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[256]:
+# In[1800]:
 
 
 plotDist(feat_ptrj,'Density of Seller Review Count')
@@ -561,7 +571,7 @@ plotDist(zScoreTransform(feat_ptrj),'Density of Z-Transform of Seller Review Cou
 plotDist(zScoreTransform(np.log(feat_ptrj)),'Density of Z-Transform of Log of Seller Review Count')
 
 
-# In[257]:
+# In[1801]:
 
 
 #KEEP REVIEW COUNT AS IS FOR NOW
@@ -574,7 +584,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 feat_ptrc
 
 
-# In[258]:
+# In[1802]:
 
 
 #STATES -> CATEGORICAL
@@ -587,7 +597,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.nunique())
 
 
-# In[259]:
+# In[1803]:
 
 
 #ZIP SEEMS REDUNDANT WITH CITY/STATE INFO ALREADY EXISTING
@@ -602,14 +612,14 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[260]:
+# In[1804]:
 
 
 print(feat_ptrj.nunique())
 print(feat_ptrc.nunique())
 
 
-# In[261]:
+# In[1805]:
 
 
 #ALL SUV, MEANINGLESS DATA
@@ -621,7 +631,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[262]:
+# In[1806]:
 
 
 #MASK BOOLEANS AS 1 AND 0's
@@ -638,14 +648,14 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[263]:
+# In[1807]:
 
 
 print(feat_ptrj.value_counts())
 print(feat_ptrc.value_counts())
 
 
-# In[264]:
+# In[1808]:
 
 
 temp_dfj = handle_vehcolorext(feat_ptrj)
@@ -668,7 +678,7 @@ print(temp_dfc.sum())
 print(temp_dfc[temp_dfc["none"]==1].index)
 
 
-# In[265]:
+# In[1809]:
 
 
 col+=1
@@ -678,7 +688,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[266]:
+# In[1810]:
 
 
 temp_dfj = handle_vehcolorint(feat_ptrj)
@@ -701,7 +711,7 @@ print(temp_dfc.sum())
 print(temp_dfc[temp_dfc["none"]==1].index)
 
 
-# In[267]:
+# In[1811]:
 
 
 col+=1
@@ -711,14 +721,14 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[268]:
+# In[1812]:
 
 
 print(feat_ptrj.value_counts())
 print(feat_ptrc.value_counts())
 
 
-# In[269]:
+# In[1813]:
 
 
 #BASED OFF UNIQUE VALUES SEPERATE INTO 4WD,FWD,or AWD
@@ -728,7 +738,7 @@ temp_dfc = handle_vehdrivetrain(feat_ptrc)
 print(temp_dfc.value_counts())
 
 
-# In[270]:
+# In[1814]:
 
 
 input_jeeps[column] = temp_dfj
@@ -741,7 +751,7 @@ print(input_jeeps[column])
 print(input_caddys[column])
 
 
-# In[271]:
+# In[1815]:
 
 
 feat_ptrj,column = setFeatPtr(input_jeeps,col)
@@ -750,7 +760,7 @@ print(feat_ptrj.value_counts())
 print(feat_ptrc.value_counts())
 
 
-# In[272]:
+# In[1816]:
 
 
 #handle_vehengine takes the vehEngine column and turns it into a 
@@ -767,7 +777,7 @@ print(temp_dfc["Cylinders"].value_counts())
 # '0' represents unknown for either columns
 
 
-# In[273]:
+# In[1817]:
 
 
 input_jeeps[temp_dfj.columns] = temp_dfj
@@ -782,7 +792,7 @@ print(temp_dfj)
 print(temp_dfc)
 
 
-# In[274]:
+# In[1818]:
 
 
 feat_ptrj,column = setFeatPtr(input_jeeps,col)
@@ -791,7 +801,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc)
 
 
-# In[275]:
+# In[1819]:
 
 
 #ELIMINATE WORDS THAT APPEAR IN MORE THAN max_doc_freq OF DOCUMENTS (DOCUMENT ~ ROW)
@@ -805,7 +815,8 @@ vocab1j = tf_idfTokenizer(temp_dfj,tf_featsj)
 vocab1j.head()
 
 
-# In[276]:
+
+# In[1820]:
 
 
 #ELIMINATE WORDS THAT APPEAR IN MORE THAN max_doc_freq OF DOCUMENTS (DOCUMENT ~ ROW)
@@ -819,7 +830,7 @@ vocab1c = tf_idfTokenizer(temp_dfc,tf_featsc)
 vocab1c.head()
 
 
-# In[277]:
+# In[1821]:
 
 
 #DROP ORIGINAL STATE COLUMN AND LATER REPLACE WITH ENCODED MATRIX COLUMNS
@@ -828,13 +839,13 @@ tokenize_cols = [column]
 input_jeeps.head()
 
 
-# In[278]:
+# In[1822]:
 
 
 input_caddys.head()
 
 
-# In[279]:
+# In[1823]:
 
 
 col+=1
@@ -844,7 +855,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[280]:
+# In[1824]:
 
 
 encoded_cols.append(column)
@@ -852,7 +863,7 @@ encoded_cols.append(column)
 col+=1
 
 
-# In[281]:
+# In[1825]:
 
 
 feat_ptrj,column = setFeatPtr(input_jeeps,col)
@@ -865,7 +876,7 @@ temp_dfj.columns = ['Owners', 'History']
 temp_dfj["History"].unique()
 
 
-# In[282]:
+# In[1826]:
 
 
 temp_dfc = feat_ptrc.str.split(',',n=1,expand=True)
@@ -873,7 +884,7 @@ temp_dfc.columns = ['Owners', 'History']
 temp_dfc["History"].unique()
 
 
-# In[283]:
+# In[1827]:
 
 
 temp_dfj['Owners'] = temp_dfj['Owners'].str.extract(r'^(\d+)')
@@ -882,7 +893,7 @@ temp_dfc['Owners'] = temp_dfc['Owners'].str.extract(r'^(\d+)')
 temp_dfj['Owners'].head()
 
 
-# In[284]:
+# In[1828]:
 
 
 input_jeeps['Owners'] = temp_dfj['Owners']
@@ -892,13 +903,13 @@ print(input_jeeps['Owners'])
 print(input_caddys['Owners'])
 
 
-# In[285]:
+# In[1829]:
 
 
 temp_dfj["History"].value_counts()
 
 
-# In[286]:
+# In[1830]:
 
 
 #TURNS OUT THAT THESE PHRASES CAN ACTUALLY BE TURNED INTO CATEGORICAL COLUMNS
@@ -908,14 +919,14 @@ encoded_histj = handle_vehhistory(temp_dfj["History"])
 encoded_histj.head()
 
 
-# In[287]:
+# In[1831]:
 
 
 encoded_histc = handle_vehhistory(temp_dfc["History"])
 encoded_histc.head()
 
 
-# In[288]:
+# In[1832]:
 
 
 #DROP ORIGINAL COLUMN AND LATER REPLACE WITH ENCODED MATRIX COLUMNS
@@ -927,7 +938,7 @@ orig_cols.append(column)
 self_encodej.head()
 
 
-# In[289]:
+# In[1833]:
 
 
 col+=1
@@ -938,7 +949,7 @@ print(feat_ptrc.value_counts())
 feat_ptrj.head()
 
 
-# In[290]:
+# In[1834]:
 
 
 #Use ceiling in order to round to whole days and start the listings 
@@ -949,7 +960,7 @@ feat_ptrc = pd.Series(np.ceil(feat_ptrc),index=feat_ptrc.index)
 feat_ptrj.head()
 
 
-# In[291]:
+# In[1835]:
 
 
 plotDist(feat_ptrj,"Distribution of Listing Days Frequency")
@@ -963,7 +974,7 @@ plotDist(zScoreTransform(feat_ptrc),"Distribution of Z-Transform(Listing Days) F
 plotDist(zScoreTransform(np.log(feat_ptrc)),"Distribution of Z-Tranform(Log(Listing Days)) Frequency")
 
 
-# In[292]:
+# In[1836]:
 
 
 #CHOOSE LOG VALUE
@@ -974,7 +985,7 @@ print(feat_ptrj)
 print(feat_ptrc)
 
 
-# In[293]:
+# In[1837]:
 
 
 input_jeeps[column] = feat_ptrj
@@ -985,7 +996,7 @@ col+=1
 input_jeeps.head()
 
 
-# In[294]:
+# In[1838]:
 
 
 feat_ptrj,column = setFeatPtr(input_jeeps,col)
@@ -995,7 +1006,7 @@ print(feat_ptrc.value_counts())
 feat_ptrj.head()
 
 
-# In[295]:
+# In[1839]:
 
 
 #The defining attribute of each list, going to keep the same for now in case the handler functions become "make" specific
@@ -1008,7 +1019,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[296]:
+# In[1840]:
 
 
 plotDist(feat_ptrj,"Density of Vehicle Mileage")
@@ -1017,7 +1028,7 @@ plotDist(zScoreTransform(feat_ptrj),"Density of Z-Transform(Vehicle Mileage)")
 plotDist(zScoreTransform(np.log(feat_ptrj)),"Density of Z-Tranform(Log(Vehicle Mileage))")
 
 
-# In[297]:
+# In[1841]:
 
 
 #ORIGINAL DATA LOOKS ~NORMAL~
@@ -1030,7 +1041,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[298]:
+# In[1842]:
 
 
 #ALREADY HAVE JEEP/CADILLAC ENCODED COLUMNS WHICH HAVE A DIRECT CORRELATION TO THIS
@@ -1044,7 +1055,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[299]:
+# In[1843]:
 
 
 encoded_cols.append(column)
@@ -1055,7 +1066,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 feat_ptrj.head()
 
 
-# In[300]:
+# In[1844]:
 
 
 #ELIMINATE WORDS THAT APPEAR IN MORE THAN max_doc_freq OF DOCUMENTS (DOCUMENT ~ ROW)
@@ -1068,7 +1079,7 @@ vocab2j = tf_idfTokenizer(feat_ptrj,tf_revj)
 vocab2j.head()
 
 
-# In[301]:
+# In[1845]:
 
 
 #ELIMINATE WORDS THAT APPEAR IN MORE THAN max_doc_freq OF DOCUMENTS (DOCUMENT ~ ROW)
@@ -1081,7 +1092,7 @@ vocab2c = tf_idfTokenizer(feat_ptrc,tf_revc)
 vocab2c.head()
 
 
-# In[302]:
+# In[1846]:
 
 
 #DROP ORIGINAL STATE COLUMN AND LATER REPLACE WITH ENCODED MATRIX COLUMNS
@@ -1090,7 +1101,7 @@ tokenize_cols.append(column)
 input_jeeps.head()
 
 
-# In[303]:
+# In[1847]:
 
 
 vocabjs = pd.merge(vocab1j,vocab2j,left_index=True,right_index=True)
@@ -1098,13 +1109,13 @@ vocabcs = pd.merge(vocab1c,vocab2c,left_index=True,right_index=True)
 vocabjs.head()
 
 
-# In[304]:
+# In[1848]:
 
 
 vocabcs.head()
 
 
-# In[305]:
+# In[1849]:
 
 
 col+=1
@@ -1114,7 +1125,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[306]:
+# In[1850]:
 
 
 #ENTIRE COLUMN HAS VALUE "USED".....  DROPPING....
@@ -1127,7 +1138,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[307]:
+# In[1851]:
 
 
 #BASICALLY ALL 8-SPEED SO IT GETS DROPPED
@@ -1140,7 +1151,7 @@ feat_ptrc,column = setFeatPtr(input_caddys,col)
 print(feat_ptrc.value_counts())
 
 
-# In[308]:
+# In[1852]:
 
 
 #ONLY 5 UNIQUES IN OUR DATASET SO WE WILL ONE HOT ENCODE THE CATEGORIES
@@ -1158,7 +1169,7 @@ print(self_encodec)
 print(tokenize_cols)
 
 
-# In[309]:
+# In[1853]:
 
 
 feats_handled = (log_cols+encoded_cols+freq_cols+same_cols+mask_cols+tokenize_cols+orig_cols)
@@ -1173,7 +1184,7 @@ print("Overlapping elements:", overlap)
 print("SIZE IS 26: ", len(feats_handled+feats_to_drop)-len(overlap)==26)
 
 
-# In[310]:
+# In[1854]:
 
 
 feats_to_drop = [col.strip().lower() for col in feats_to_drop]
@@ -1182,7 +1193,7 @@ input_jeeps.drop(columns=feats_to_drop,inplace=True)
 input_jeeps.head()
 
 
-# In[311]:
+# In[1855]:
 
 
 input_caddys.columns = [col.strip().lower() for col in input_caddys.columns]
@@ -1190,7 +1201,7 @@ input_caddys.drop(columns=feats_to_drop,inplace=True)
 input_caddys.head()
 
 
-# In[312]:
+# In[1856]:
 
 
 input_jeeps = pd.merge(input_jeeps,self_encodej,left_index=True,right_index=True)
@@ -1198,7 +1209,7 @@ print(self_encodej.columns)
 input_jeeps.info()
 
 
-# In[313]:
+# In[1857]:
 
 
 input_caddys = pd.merge(input_caddys,self_encodec,left_index=True,right_index=True)
@@ -1206,7 +1217,7 @@ print(self_encodec.columns)
 input_caddys.info()
 
 
-# In[314]:
+# In[1858]:
 
 
 temp_encodedj = input_jeeps[encoded_cols]
@@ -1214,7 +1225,7 @@ print(encoded_cols)
 print(temp_encodedj.columns)
 
 
-# In[315]:
+# In[1859]:
 
 
 encoderj = OneHotEncoder(handle_unknown='ignore')
@@ -1224,14 +1235,14 @@ temp_encodedj = oHotEncode(temp_encodedj,coderj)
 temp_encodedj.head()
 
 
-# In[316]:
+# In[1860]:
 
 
 temp_encodedc = input_caddys[encoded_cols]
 print(temp_encodedc.columns)
 
 
-# In[317]:
+# In[1861]:
 
 
 encoderc = OneHotEncoder(handle_unknown='ignore')
@@ -1241,7 +1252,7 @@ temp_encodedc = oHotEncode(temp_encodedc,coderc)
 temp_encodedc.head()
 
 
-# In[318]:
+# In[1862]:
 
 
 input_jeeps.drop(columns=encoded_cols,inplace=True)
@@ -1249,7 +1260,7 @@ post_feat_engj = pd.merge(input_jeeps,temp_encodedj,left_index=True, right_index
 post_feat_engj.head()
 
 
-# In[319]:
+# In[1863]:
 
 
 input_caddys.drop(columns=encoded_cols,inplace=True)
@@ -1257,21 +1268,21 @@ post_feat_engc = pd.merge(input_caddys,temp_encodedc,left_index=True, right_inde
 post_feat_engc.head()
 
 
-# In[320]:
+# In[1864]:
 
 
 post_feat_engj = pd.merge(post_feat_engj,vocabjs,left_index=True, right_index=True)
 post_feat_engj.head()
 
 
-# In[321]:
+# In[1865]:
 
 
 post_feat_engc = pd.merge(post_feat_engc,vocabcs,left_index=True, right_index=True)
 post_feat_engc.head()
 
 
-# In[322]:
+# In[1866]:
 
 
 types = post_feat_engj.select_dtypes(include=['object'])
@@ -1280,7 +1291,7 @@ types = post_feat_engj.select_dtypes(include=['object'])
 print(types)
 
 
-# In[323]:
+# In[1867]:
 
 
 post_feat_engj["owners"] = pd.to_numeric(post_feat_engj["owners"], errors='coerce').fillna(0).astype(int)
@@ -1289,7 +1300,7 @@ post_feat_engj.columns = post_feat_engj.columns.astype(str)
 post_feat_engj.info()
 
 
-# In[324]:
+# In[1868]:
 
 
 post_feat_engc["owners"] = pd.to_numeric(post_feat_engc["owners"], errors='coerce').fillna(0).astype(int)
@@ -1298,7 +1309,7 @@ post_feat_engc.columns = post_feat_engc.columns.astype(str)
 post_feat_engc.info()
 
 
-# In[325]:
+# In[1869]:
 
 
 columnsj_missing = post_feat_engj.columns[post_feat_engj.isna().any()].tolist()
@@ -1307,7 +1318,7 @@ columnsj_missing = post_feat_engj.columns[post_feat_engj.isna().any()].tolist()
 print("Columns with missing values:", columnsj_missing)
 
 
-# In[326]:
+# In[1870]:
 
 
 columnsc_missing = post_feat_engc.columns[post_feat_engc.isna().any()].tolist()
@@ -1316,21 +1327,21 @@ columnsc_missing = post_feat_engc.columns[post_feat_engc.isna().any()].tolist()
 print("Columns with missing values:", columnsc_missing)
 
 
-# In[327]:
+# In[1871]:
 
 
 print(post_feat_engj.isna().sum().sum())
 post_feat_engj.head()
 
 
-# In[328]:
+# In[1872]:
 
 
 print(post_feat_engc.isna().sum().sum())
 post_feat_engc.head()
 
 
-# In[329]:
+# In[1873]:
 
 
 output_data = pd.DataFrame(df_train.iloc[:,-2:].copy())
@@ -1340,7 +1351,7 @@ print(output_jeeps["vehicle_trim"].value_counts())
 print(output_caddys["vehicle_trim"].value_counts())
 
 
-# In[330]:
+# In[1874]:
 
 
 df_test.isna().sum()
@@ -1349,7 +1360,7 @@ test_jeeps = pd.DataFrame(test_df[test_df["VehMake"]=="Jeep"])
 test_caddys = pd.DataFrame(test_df[test_df["VehMake"]=="Cadillac"])
 
 
-# In[331]:
+# In[1875]:
 
 
 #NOW APPLY THE SAME ENCODING AND TRANSFORMATIONS TO THE TEST DATASET
@@ -1358,7 +1369,7 @@ test_data_jeeps = engineerTestData(test_jeeps,log_cols,encoded_cols,freq_cols,
                              coderj,tf_featsj,tf_revj)
 
 
-# In[332]:
+# In[1876]:
 
 
 #NOW APPLY THE SAME ENCODING AND TRANSFORMATIONS TO THE TEST DATASET
@@ -1367,7 +1378,7 @@ test_data_caddys = engineerTestData(test_caddys,log_cols,encoded_cols,freq_cols,
                              coderc,tf_featsc,tf_revc)
 
 
-# In[333]:
+# In[1877]:
 
 
 print(test_data_jeeps.isna().sum().sum())
@@ -1375,7 +1386,7 @@ print(test_data_jeeps.info())
 test_data_jeeps.columns
 
 
-# In[334]:
+# In[1878]:
 
 
 print(test_data_caddys.isna().sum().sum())
@@ -1383,7 +1394,7 @@ print(test_data_caddys.info())
 test_data_caddys.head()
 
 
-# In[335]:
+# In[1879]:
 
 
 columns_with_missing_values = test_data_jeeps.columns[test_data_jeeps.isna().any()].tolist()
@@ -1392,7 +1403,7 @@ print(test_data_jeeps.index)
 print("Columns with missing values:", columns_with_missing_values)
 
 
-# In[336]:
+# In[1880]:
 
 
 columns_with_missing_values = test_data_caddys.columns[test_data_caddys.isna().any()].tolist()
@@ -1401,14 +1412,14 @@ print(test_data_caddys.index)
 print("Columns with missing values:", columns_with_missing_values)
 
 
-# In[337]:
+# In[1881]:
 
 
 test_data_jeeps["owners"] = pd.to_numeric(test_data_jeeps["owners"], errors='coerce').fillna(0).astype(int)
 test_data_caddys["owners"] = pd.to_numeric(test_data_caddys["owners"], errors='coerce').fillna(0).astype(int)
 
 
-# In[338]:
+# In[1882]:
 
 
 print(test_data_jeeps.shape)
@@ -1426,7 +1437,7 @@ print("Columns unique to DataFrame 2:", columns_unique_to_df2)
 print("Common columns:", common_columns)
 
 
-# In[339]:
+# In[1883]:
 
 
 jeep_encoder = LabelEncoder()
@@ -1448,7 +1459,7 @@ list_pricej = output_jeeps["dealer_listing_price"]
 list_pricec = output_caddys["dealer_listing_price"] 
 
 
-# In[340]:
+# In[1884]:
 
 
 post_feat_engj.drop("vehmake", axis=1, inplace=True)
@@ -1458,21 +1469,21 @@ post_feat_engc.drop("vehmake", axis=1, inplace=True)
 print(caddy_veh_trim.value_counts())
 
 
-# In[341]:
+# In[1885]:
 
 
 clfj = tr.XGB_Classifier(post_feat_engj,jeep_veh_trim,False,jeep_encoder)
 clfc = tr.XGB_Classifier(post_feat_engc,caddy_veh_trim,False,caddy_encoder)
 
 
-# In[342]:
+# In[1886]:
 
 
 regj = tr.XGB_Regressor(post_feat_engj,list_pricej,jeep_veh_trim,jeep_encoder,False,True)
 regc = tr.XGB_Regressor(post_feat_engc,list_pricec,caddy_veh_trim,caddy_encoder,False,True)
 
 
-# In[343]:
+# In[1887]:
 
 
 #TEST VEHICLE TRIM PREDICTIONS
@@ -1487,7 +1498,7 @@ print(clfc.preds.isna().sum())
 print(clfc.preds.value_counts())
 
 
-# In[344]:
+# In[1888]:
 
 
 percentages = pd.DataFrame({"TEST PREDS" : clfj.preds.value_counts(normalize=True), 
@@ -1496,7 +1507,7 @@ percentages = pd.DataFrame({"TEST PREDS" : clfj.preds.value_counts(normalize=Tru
 percentages
 
 
-# In[345]:
+# In[1889]:
 
 
 exp_pricesj = pr.calc_exp_prices(test_data_jeeps,pre_encoded_jeeps,regj)
@@ -1504,25 +1515,25 @@ exp_pricesc =  pr.calc_exp_prices(test_data_caddys,pre_encoded_caddys,regc)
 print(exp_pricesj)
 
 
-# In[346]:
+# In[1890]:
 
 
 test_preds_pricej = pr.calc_test_prices(test_data_jeeps,clfj,regj,exp_pricesj)
 test_preds_pricec = pr.calc_test_prices(test_data_caddys,clfc,regc,exp_pricesc)
 
 
-# In[347]:
+# In[1891]:
 
 
 #JEEPS WITHOUT POSTERIOR PROBABILITY
-regj.prediction(pd.concat([test_data_jeeps,clfj.preds_proba],axis=1))
-predsj = pd.Series(regj.preds,index=test_data_jeeps.index,name=list_pricej.name)
+model_w_trims_preds = regj.prediction(pd.concat([test_data_jeeps,clfj.preds_proba],axis=1))
+price_predsj_wtrims = pd.Series(model_w_trims_preds,index=test_data_jeeps.index,name=list_pricej.name)
 #CADDYS WITHOUT POSTERIOR PROBABILITY
-regc.prediction(pd.concat([test_data_caddys,clfc.preds_proba],axis=1))
-predsc = pd.Series(regc.preds,index=test_data_caddys.index,name=list_pricec.name)
+model_w_trims_predsc = regc.prediction(pd.concat([test_data_caddys,clfc.preds_proba],axis=1))
+price_predsc_wtrims = pd.Series(model_w_trims_predsc,index=test_data_caddys.index,name=list_pricec.name)
 
 
-# In[348]:
+# In[1892]:
 
 
 #Train a new model without the trims involved
@@ -1531,24 +1542,24 @@ regj_no_trim.prediction(test_data_jeeps)
 no_trims = pd.Series(regj_no_trim.preds,index=test_data_jeeps.index,name=list_pricej.name)
 
 
-# In[349]:
+# In[1893]:
 
 
 desc_stats = pd.DataFrame({'Training Prices': list_pricej.describe(),
                            'Expected Price Prob Calculation': test_preds_pricej.describe(),
-                          'Model Prediction with trim probs': predsj.describe(),
+                          'Model Prediction with trim probs': price_predsj_wtrims.describe(),
                           'Trim Agnostic Preds': no_trims.describe()})
 
 desc_stats
 
 
-# In[350]:
+# In[1894]:
 
 
 #Test Exp price calc on training data
 
 
-# In[351]:
+# In[1895]:
 
 
 '''import optuna
@@ -1578,7 +1589,7 @@ study_trim.optimize(lambda trial: objective_trim(trial, post_feat_engj, jeep_veh
 best_params_trim = study_trim.best_params'''
 
 
-# In[352]:
+# In[1896]:
 
 
 '''best_score = study_trim.best_value
@@ -1587,18 +1598,26 @@ best_params_trim = study_trim.best_params'''
 print(f"Best Score: {best_score}")'''
 
 
-# In[353]:
+# In[1897]:
 
 
-final_jeep_outputs = pd.concat([clfj.preds, test_preds_pricej],axis=1)
-final_caddy_outputs = pd.concat([clfc.preds, test_preds_pricec],axis=1)
-final_outputs = pd.concat([final_jeep_outputs,final_caddy_outputs],axis=0)
+# Concatenating predictions for Jeep
+final_jeep_outputs = pd.concat([clfj.preds, test_preds_pricej], axis=1)
 
+# Concatenating predictions for Caddy
+final_caddy_outputs = pd.concat([clfc.preds, test_preds_pricec], axis=1)
+
+# Concatenating final outputs and preserving the index order of test_df
+final_outputs = pd.concat([final_jeep_outputs, final_caddy_outputs], axis=0)
+final_outputs = final_outputs.sort_index()
+
+# Naming columns appropriately
 final_outputs.columns = output_data.columns
+
 print(final_outputs)
 
 
-# In[354]:
+# In[1898]:
 
 
 final_outputs['Index'] = final_outputs.index
@@ -1606,26 +1625,26 @@ final_outputs = final_outputs[['Index',output_data.columns[0],output_data.column
 final_outputs.head()
 
 
-# In[355]:
+# In[1899]:
 
 
 print(final_outputs.isna().sum())
 
 
-# In[356]:
+# In[1900]:
 
 
 final_outputs.to_csv('submission.csv', index=False, header=False)
 
 
-# In[357]:
+# In[1901]:
 
 
 xgb.plot_importance(clfj.model,max_num_features=25,importance_type='weight', show_values=False, xlabel='Importance', ylabel='Features', orientation='horizontal')
 plt.show()
 
 
-# In[ ]:
+# In[1902]:
 
 
 #Gathering stats using expected price calculation on training data splits
@@ -1634,7 +1653,7 @@ test_exp_j = tr.XGB_Regressor(post_feat_engj,list_pricej,jeep_veh_trim,jeep_enco
 test_exp_c = tr.XGB_Regressor(post_feat_engc,list_pricec,caddy_veh_trim,caddy_encoder,True,True)
 
 
-# In[ ]:
+# In[1903]:
 
 
 importance_scores = regc.model.get_booster().get_score(importance_type='gain')

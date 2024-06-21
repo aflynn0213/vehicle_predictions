@@ -196,8 +196,8 @@ class XGB_Regressor:
         cv.fit(x_train,y_train)
         
         # Best parameters and best score
-        print("Best AJF Parameters: ", cv.best_params_)
-        print("Best AJF Score R2: ", cv.best_score_)
+        print("Best Regression Parameters: ", cv.best_params_)
+        print("Best Regression Score R2: ", cv.best_score_)
         
         best_xgb_reg = cv.best_estimator_
         if (stats):
